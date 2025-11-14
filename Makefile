@@ -151,10 +151,11 @@ launch-a2a-inspector: ## 🚀 Launch the A2A Inspector Docker container
 	@echo "\033[1;34m🚀 Cloning and building a2aproject/a2a-inspector Docker image...\033[0m"
 	@git clone https://github.com/a2aproject/a2a-inspector.git /tmp/a2a-inspector || true
 	@cd /tmp/a2a-inspector && docker build -t a2a-inspector .
-	@echo "\033[1;34m🚀 Launching A2A Inspector on http://localhost:8080\033[0m"
-	@docker run -d --rm --name a2a-inspector -p 8080:8080 a2a-inspector
-	@echo "\033[1;32mA2A Inspector launched. Access it at http://localhost:8080\033[0m"
-	@echo "\033[1;33mTo stop it, run 'make kill-a2a-inspector'\033[0m"
+	@echo "\033[1;34m🚀 Launching A2A Inspector on http://localhost:8080 in foreground for debugging. Press Ctrl+C to stop.\033[0m"
+	@docker run --name a2a-inspector -p 8080:8080 a2a-inspector
+	@echo "\033[1;32mA2A Inspector stopped.\033[0m"
+	@echo "\033[1;33mTo clean up, run 'make kill-a2a-inspector'\033[0m"
+
 
 kill-a2a-inspector: ## 🛑 Stop and remove the A2A Inspector Docker container
 	@echo "\033[1;34m🛑 Stopping A2A Inspector Docker container...\033[0m"
