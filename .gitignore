@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Virtual environments
+.venv/
+
+# Build artifacts
+deploy/
+deployment/
+*.zip
+
+# Terraform files
+iac/.terraform/
+iac/.terraform.lock.hcl
+iac/terraform.tfstate
+iac/terraform.tfstate.*
+iac/.terraform.tfvars
+
+.gemini/
+gha-creds-*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CA certificates
+cacerts.pem

@@ -1,0 +1,18 @@
+[project]
+name = "aws-agentcore-agent"
+version = "0.1.0"
+description = "Production grade AI agent built for Amazon Bedrock Agent Runtime"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "strands-agents[a2a]>=1.15.0",
+    "strands-agents-tools>=0.2.14",
+    "fastapi>=0.121.1",
+    "uvicorn>=0.38.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=9.0.0",
+    "pytest-cov>=7.0.0",
+]
