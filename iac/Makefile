@@ -72,7 +72,7 @@ setup-backend: ## Create S3/DynamoDB backend for Terraform state
 
 tf-init: ## Initialize Terraform
 	@echo "Initializing Terraform..."
-	@terraform init -backend-config=backend.config
+	@terraform init -reconfigure -backend-config=backend.config
 
 plan: tf-init ## Plan Terraform changes
 	@echo "Planning Terraform deployment..."
