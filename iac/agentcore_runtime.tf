@@ -123,7 +123,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agentcore_runtime" {
 
 resource "aws_bedrockagentcore_agent_runtime_endpoint" "agentcore_runtime_endpoint" {
   name             = "${var.agent_runtime_name_compliant}-endpoint"
-  agent_runtime_id = aws_bedrockagentcore_agent_runtime.agentcore_runtime.id
+  agent_runtime_id = aws_bedrockagentcore_agent_runtime.agentcore_runtime.agent_runtime_id
   description      = "Endpoint for agent runtime communication for ${var.agent_runtime_name_compliant}"
   tags             = var.common_tags
 }

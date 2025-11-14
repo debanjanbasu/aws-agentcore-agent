@@ -74,6 +74,10 @@ tf-init: ## Initialize Terraform
 	@echo "Initializing Terraform..."
 	@terraform init -reconfigure -backend-config=backend.config
 
+tf-validate: ## Validate Terraform configuration
+	@echo "Validating Terraform configuration..."
+	@terraform validate
+
 plan: tf-init ## Plan Terraform changes
 	@echo "Planning Terraform deployment..."
 	@terraform plan $(ARGS)
