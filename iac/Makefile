@@ -92,6 +92,7 @@ test: ## 🧪 Validate and plan Terraform configuration
 
 create-ecr: ## 📦 Create ECR repository via Terraform
 	@echo "Creating ECR repository if it doesn't exist..."
+	@$(MAKE) tf-init # Explicitly call tf-init with -reconfigure
 	@terraform apply -auto-approve -target=aws_ecr_repository.agentcore_repo -var="terraform_state_bucket_name=$(TF_STATE_BUCKET)"
 
 
