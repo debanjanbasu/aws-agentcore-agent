@@ -88,20 +88,23 @@ resource "aws_iam_role_policy_attachment" "agentcore_runtime_policy_attachment" 
 # Data source for AWS Caller Identity to get account ID
 data "aws_caller_identity" "current" {}
 
-resource "awscc_bedrockagentcore_runtime" "agentcore_runtime" {
+resource "aws_bedrockagentcore_agent_runtime" "agentcore_runtime" {
   agent_runtime_name = var.agent_runtime_name_compliant
-  agent_runtime_artifact = {
-    container_configuration = {
+  role_arn           = aws_iam_role.agentcore_runtime_role.arn
+  tags               = var.common_tags
+
+  agent_runtime_artifact {
+    container_configuration {
       container_uri = "${aws_ecr_repository.agentcore_repo.repository_url}:latest"
     }
   }
-  network_configuration = {
+
+  network_configuration {
     network_mode = "PUBLIC"
   }
-  role_arn = aws_iam_role.agentcore_runtime_role.arn
 
-  authorizer_configuration = {
-    custom_jwt_authorizer = {
+  authorizer_configuration {
+    custom_jwt_authorizer {
       discovery_url = local.entra_discovery_url
       allowed_audiences = [
         azuread_application.agentcore_app.client_id
@@ -112,10 +115,15 @@ resource "awscc_bedrockagentcore_runtime" "agentcore_runtime" {
     }
   }
 
-  tags = var.common_tags
-
   depends_on = [
     aws_iam_role_policy_attachment.agentcore_runtime_policy_attachment,
     aws_ecr_repository_policy.agentcore_repo_policy
   ]
+}
+
+resource "aws_bedrockagentcore_agent_runtime_endpoint" "agentcore_runtime_endpoint" {
+  name             = "${var.agent_runtime_name_compliant}-endpoint"
+  agent_runtime_id = aws_bedrockagentcore_agent_runtime.agentcore_runtime.id
+  description      = "Endpoint for agent runtime communication for ${var.agent_runtime_name_compliant}"
+  tags             = var.common_tags
 }

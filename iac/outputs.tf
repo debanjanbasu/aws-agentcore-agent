@@ -10,7 +10,7 @@ output "ecr_repository_url" {
 
 output "agentcore_runtime_id" {
   description = "The ID of the Bedrock Agentcore Runtime."
-  value       = awscc_bedrockagentcore_runtime.agentcore_runtime.id
+  value       = aws_bedrockagentcore_agent_runtime.agentcore_runtime.id
 }
 
 output "entra_app_client_id" {
@@ -27,4 +27,14 @@ output "entra_client_secret" {
   description = "The client secret for external agent connectors."
   value       = azuread_application_password.external_connector.value
   sensitive   = true
+}
+
+output "agentcore_runtime_endpoint_arn" {
+  description = "The ARN of the Bedrock Agentcore Runtime Endpoint."
+  value       = aws_bedrockagentcore_agent_runtime_endpoint.agentcore_runtime_endpoint.agent_runtime_endpoint_arn
+}
+
+output "agentcore_a2a_endpoint_url" {
+  description = "The A2A endpoint URL for the Bedrock Agentcore Runtime."
+  value       = "https://bedrock-agentcore.${var.aws_region}.amazonaws.com/runtimes/${aws_bedrockagentcore_agent_runtime.agentcore_runtime.arn}/invocations/"
 }
