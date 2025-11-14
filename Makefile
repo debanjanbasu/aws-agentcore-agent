@@ -150,6 +150,7 @@ setup-backend: ## ⚙️ Create S3/DynamoDB backend for Terraform state
 launch-a2a-inspector: ## 🚀 Launch the A2A Inspector Docker container
 	@echo "\033[1;34m🚀 Cloning and building a2aproject/a2a-inspector Docker image...\033[0m"
 	@git clone https://github.com/a2aproject/a2a-inspector.git /tmp/a2a-inspector || true
+	@cd /tmp/a2a-inspector && sed -i '' 's/uv sync/uv sync --native-tls/g' Dockerfile # Add --native-tls to uv sync
 	@cd /tmp/a2a-inspector && docker build -t a2a-inspector .
 	@echo "\033[1;34m🚀 Launching A2A Inspector on http://localhost:8080 in foreground for debugging. Press Ctrl+C to stop.\033[0m"
 	@docker run --name a2a-inspector -p 8080:8080 a2a-inspector
