@@ -1,4 +1,4 @@
-.PHONY: help tf-init create-ecr test oauth-config plan apply destroy setup-backend
+.PHONY: help tf-init create-ecr test oauth-config plan apply destroy setup-backend logs
 
 # ====================================================================================
 # VARIABLES
@@ -94,9 +94,8 @@ test: ## 🧪 Validate and plan Terraform configuration
 	@$(MAKE) tf-validate
 	@$(MAKE) tf-plan
 
-create-ecr: ## 📦 Create ECR repository via Terraform
+create-ecr: tf-init ## 📦 Create ECR repository via Terraform
 	@echo "\033[1;34m📦 Creating ECR repository if it doesn't exist...\033[0m"
-	@$(MAKE) tf-init # Explicitly call tf-init with -reconfigure
 	@terraform apply -auto-approve -target=aws_ecr_repository.agentcore_repo -var="terraform_state_bucket_name=$(TF_STATE_BUCKET)"
 
 
@@ -119,4 +118,17 @@ oauth-config: ## 📋 Display JWT configuration for A2A authentication
 		echo "  \033[1;36mToken URL:\033[0m https://login.microsoftonline.com/$$TENANT_ID/oauth2/v2.0/token"; \
 		echo "  \033[1;36mScope:\033[0m api://$$CLIENT_ID/access_as_user"; \
 		echo ""; \
+	'
+
+logs: ## 📜 Tail CloudWatch logs for the ECS task
+	@echo "\033[1;34m📜 Tailing CloudWatch logs for ECS task... (Ctrl+C to exit)\033[0m"
+	@bash -c ' \
+		set -e; \
+		LOG_GROUP_NAME=$$(terraform output -raw log_group_name 2>/dev/null); \
+		if [ -z "$$LOG_GROUP_NAME" ]; then \
+			echo "\033[1;31m❌ Error: Log group name not found in Terraform outputs. Run \"make apply\" first.\033[0m"; \
+			exit 1; \
+		fi; \
+		echo "Found log group: $$LOG_GROUP_NAME"; \
+		aws logs tail $$LOG_GROUP_NAME --follow --region $(AWS_REGION); \
 	'

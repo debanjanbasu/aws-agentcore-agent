@@ -1,18 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "aws-agentcore-agent"
 version = "0.1.0"
 description = "Production grade AI agent built for Amazon Bedrock Agent Runtime"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "strands-agents[a2a]>=1.15.0",
     "strands-agents-tools>=0.2.14",
     "fastapi>=0.121.1",
     "uvicorn>=0.38.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=9.0.0",
     "pytest-cov>=7.0.0",
+]
+dev = [
+    "ruff>=0.5.9",
+    "black>=24.4.2",
 ]
