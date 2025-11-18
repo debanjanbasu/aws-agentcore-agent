@@ -76,7 +76,7 @@ build: ## 🐳 Build the Docker image (debug/local build)
 
 test: ## 🧪 Run unit tests
 	@echo "$(BLUE)🧪 Running unit tests...$(RESET)"
-	@source .venv/bin/activate && python -m pytest tests/ -v
+	@uv run python -m pytest tests/ -v
 	@echo "$(GREEN)✓ All tests passed!$(RESET)"
 
 release: ## 📦 Build a release-ready Docker image for a specific platform
