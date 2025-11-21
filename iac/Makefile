@@ -1,4 +1,4 @@
-.PHONY: help tf-init create-ecr test oauth-config plan apply destroy setup-backend logs
+.PHONY: help login tf-init create-ecr test oauth-config plan apply destroy setup-backend logs clean
 
 # ====================================================================================
 # VARIABLES
@@ -6,8 +6,16 @@
 
 AWS_REGION   ?= ap-southeast-2
 PROJECT_NAME ?= aws-agentcore-agent
-ARGS         ?= 
- 
+ARGS         ?=
+
+# Colors for output
+RED := \033[1;31m
+GREEN := \033[1;32m
+YELLOW := \033[1;33m
+BLUE := \033[1;34m
+CYAN := \033[1;36m
+BOLD := \033[1m
+RESET := \033[0m
 
 # ====================================================================================
 # HELPERS
@@ -16,16 +24,62 @@ ARGS         ?=
 .PHONY: help
 .DEFAULT_GOAL := help
 
-help: ## Show this help
-	@echo "IAC Makefile - Terraform Infrastructure"
+help: ## ✨ Show this help
+	@echo "$(CYAN)$(BOLD)AWS Agentcore Agent - Infrastructure Commands$(RESET)"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo "$(GREEN)Quick Start:$(RESET)"
+	@awk 'BEGIN {FS = ":.*?## "}; /^apply:.*##/ {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "$(GREEN)Step by Step:$(RESET)"
+	@awk 'BEGIN {FS = ":.*?## "}; /^(setup-backend|tf-init|plan|apply):.*##/ {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "$(GREEN)Testing:$(RESET)"
+	@awk 'BEGIN {FS = ":.*?## "}; /^(logs|test):.*##/ {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "$(GREEN)Utilities:$(RESET)"
+	@awk 'BEGIN {FS = ":.*?## "}; /^(login|clean|destroy|oauth-config):.*##/ {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# ====================================================================================
+# UTILITIES
+# ====================================================================================
+
+login: ## 🔐 Authenticate AWS + Azure CLIs
+	@echo "$(BLUE)🔐 Authenticating with AWS and Azure...$(RESET)"
+	@command -v aws >/dev/null 2>&1 || (echo "$(RED)❌ AWS CLI not found. Install: https://aws.amazon.com/cli/$(RESET)" && exit 1)
+	@command -v az >/dev/null 2>&1 || (echo "$(RED)❌ Azure CLI not found. Install: https://aka.ms/azure-cli$(RESET)" && exit 1)
+
+	@if aws sts get-caller-identity >/dev/null 2>&1; then \
+		echo "$(GREEN)✅ AWS: $$(aws sts get-caller-identity --query 'Account' --output text)$(RESET)"; \
+	else \
+		echo "Please login to AWS:"; \
+		if aws configure list | grep -q sso_start_url; then \
+			aws sso login; \
+		else \
+			echo "Run: aws configure"; \
+			exit 1; \
+		fi; \
+	fi
+
+	@if az account show >/dev/null 2>&1; then \
+		echo "$(GREEN)✅ Azure: $$(az account show --query 'name' -o tsv)$(RESET)"; \
+	else \
+		echo "Logging into Azure..."; \
+		az login; \
+	fi
+	@echo "$(GREEN)✅ Authentication complete!$(RESET)"
+
+clean: ## 🧹 Remove tokens and backups
+	@echo "$(BLUE)🧹 Cleaning up temporary files...$(RESET)"
+	@rm -f .env
+	@rm -f terraform.tfvars.*.backup
+	@rm -f terraform.tfvars.temp
+	@echo "$(GREEN)✅ Clean complete!$(RESET)"
 
 # ====================================================================================
 # TERRAFORM COMMANDS
 # ====================================================================================
 
-setup-backend: ## Create S3/DynamoDB backend for Terraform state
+setup-backend: ## ⚙️ Create S3 backend for Terraform state (deprecated - use root Makefile)
 	@if [ -f backend.config ]; then \
 		echo "\033[1;32m✅ backend.config already exists. Skipping backend setup.\033[0m"; \
 		exit 0; \
@@ -70,63 +124,64 @@ setup-backend: ## Create S3/DynamoDB backend for Terraform state
 	echo "Run '\033[1;36mmake tf-init\033[0m' to initialize Terraform with the new backend."
 
 
-tf-init: ## Initialize Terraform
-	@echo "\033[1;34m⚙️  Initializing Terraform...\033[0m"
+tf-init: ## ⚙️ Initialize Terraform
+	@echo "$(BLUE)⚙️  Initializing Terraform...$(RESET)"
 	@terraform init -reconfigure -backend-config=backend.config
 
-tf-validate: ## Validate Terraform configuration
-	@echo "\033[1;34m✅ Validating Terraform configuration...\033[0m"
+tf-validate: ## ✅ Validate Terraform configuration
+	@echo "$(BLUE)✅ Validating Terraform configuration...$(RESET)"
 	@terraform validate
 
-plan: tf-init ## Plan Terraform changes
-	@echo "\033[1;34m📋 Planning Terraform deployment...\033[0m"
+plan: tf-init ## 📋 Plan Terraform changes
+	@echo "$(BLUE)📋 Planning Terraform deployment...$(RESET)"
 	@terraform plan $(ARGS)
 
-apply: tf-init ## Apply Terraform changes
-	@echo "\033[1;34m🚀 Applying Terraform deployment...\033[0m"
-	@terraform apply -auto-approve $(ARGS) -var="terraform_state_bucket_name=$(TF_STATE_BUCKET)"
+apply: tf-init ## 🚀 Apply Terraform changes
+	@echo "$(BLUE)🚀 Applying Terraform deployment...$(RESET)"
+	@terraform apply -auto-approve $(ARGS)
+	@echo "$(GREEN)✅ Infrastructure changes applied successfully!$(RESET)"
 
-destroy: ## Destroy Terraform resources
-	@echo "\033[1;33m🧨 Destroying Terraform resources...\033[0m"
+destroy: ## 🧨 Destroy Terraform resources
+	@echo "$(YELLOW)🧨 Destroying Terraform resources...$(RESET)"
 	@terraform destroy -auto-approve $(ARGS)
 
 test: ## 🧪 Validate and plan Terraform configuration
 	@$(MAKE) tf-validate
-	@$(MAKE) tf-plan
+	@$(MAKE) plan
 
 create-ecr: tf-init ## 📦 Create ECR repository via Terraform
-	@echo "\033[1;34m📦 Creating ECR repository if it doesn't exist...\033[0m"
-	@terraform apply -auto-approve -target=aws_ecr_repository.agentcore_repo -var="terraform_state_bucket_name=$(TF_STATE_BUCKET)"
+	@echo "$(BLUE)📦 Creating ECR repository if it doesn't exist...$(RESET)"
+	@terraform apply -auto-approve -target=aws_ecr_repository.agentcore_repo
 
 
 
 oauth-config: ## 📋 Display JWT configuration for A2A authentication
-	@echo "\033[1;34m=== A2A JWT Authentication Configuration ===\033[0m"
+	@echo "$(BLUE)=== A2A JWT Authentication Configuration ===$(RESET)"
 	@echo ""
 	@bash -c ' \
 		CLIENT_ID=$$(terraform output -raw entra_app_client_id 2>/dev/null); \
 		TENANT_ID=$$(terraform output -raw entra_tenant_id 2>/dev/null); \
 		if [ -z "$$CLIENT_ID" ] || [ -z "$$TENANT_ID" ]; then \
-			echo "\033[1;31m❌ Error: Terraform outputs not available. Run \"make tf-apply\" first.\033[0m"; \
+			echo -e "$(RED)❌ Error: Terraform outputs not available. Run \"make apply\" first.$(RESET)"; \
 			exit 1; \
 		fi; \
-		echo "\033[1;34m📋 Use these values to configure your A2A client for JWT authentication:\033[0m"; \
+		echo -e "$(BLUE)📋 Use these values to configure your A2A client for JWT authentication:$(RESET)"; \
 		echo ""; \
-		echo "  \033[1;36mClient ID:\033[0m $$CLIENT_ID"; \
-		echo "  \033[1;36mTenant ID:\033[0m $$TENANT_ID"; \
-		echo "  \033[1;36mAuthorization URL:\033[0m https://login.microsoftonline.com/$$TENANT_ID/oauth2/v2.0/authorize"; \
-		echo "  \033[1;36mToken URL:\033[0m https://login.microsoftonline.com/$$TENANT_ID/oauth2/v2.0/token"; \
-		echo "  \033[1;36mScope:\033[0m api://$$CLIENT_ID/access_as_user"; \
+		echo -e "  $(CYAN)Client ID:$(RESET) $$CLIENT_ID"; \
+		echo -e "  $(CYAN)Tenant ID:$(RESET) $$TENANT_ID"; \
+		echo -e "  $(CYAN)Authorization URL:$(RESET) https://login.microsoftonline.com/$$TENANT_ID/oauth2/v2.0/authorize"; \
+		echo -e "  $(CYAN)Token URL:$(RESET) https://login.microsoftonline.com/$$TENANT_ID/oauth2/v2.0/token"; \
+		echo -e "  $(CYAN)Scope:$(RESET) api://$$CLIENT_ID/access_as_user"; \
 		echo ""; \
 	'
 
-logs: ## 📜 Tail CloudWatch logs for the ECS task
-	@echo "\033[1;34m📜 Tailing CloudWatch logs for ECS task... (Ctrl+C to exit)\033[0m"
+logs: ## 📜 Tail CloudWatch logs
+	@echo "$(BLUE)📜 Tailing CloudWatch logs... (Ctrl+C to exit)$(RESET)"
 	@bash -c ' \
 		set -e; \
 		LOG_GROUP_NAME=$$(terraform output -raw log_group_name 2>/dev/null); \
 		if [ -z "$$LOG_GROUP_NAME" ]; then \
-			echo "\033[1;31m❌ Error: Log group name not found in Terraform outputs. Run \"make apply\" first.\033[0m"; \
+			echo -e "$(RED)❌ Error: Log group name not found in Terraform outputs. Run \"make apply\" first.$(RESET)"; \
 			exit 1; \
 		fi; \
 		echo "Found log group: $$LOG_GROUP_NAME"; \

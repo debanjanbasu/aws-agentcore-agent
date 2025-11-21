@@ -19,9 +19,14 @@ iac/.terraform/
 iac/.terraform.lock.hcl
 iac/terraform.tfstate
 iac/terraform.tfstate.*
-iac/.terraform.tfvars
+iac/backend.config
+iac/*.tfvars
+!iac/terraform.tfvars.example
 
-.gemini/
+# Environment files
+.env*
+!.env.example
+
 gha-creds-*.json
 
 # OS

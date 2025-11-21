@@ -1,5 +1,11 @@
 # AWS Bedrock Agentcore Agent with Strands
 
+[![Deploy](https://github.com/debanjanbasu/aws-agentcore-agent/actions/workflows/deploy.yml/badge.svg)](https://github.com/debanjanbasu/aws-agentcore-agent/actions/workflows/deploy.yml)
+[![Security](https://github.com/debanjanbasu/aws-agentcore-agent/actions/workflows/checkov.yml/badge.svg)](https://github.com/debanjanbasu/aws-agentcore-agent/actions/workflows/checkov.yml)
+[![CodeQL](https://github.com/debanjanbasu/aws-agentcore-agent/actions/workflows/codeql.yml/badge.svg)](https://github.com/debanjanbasu/aws-agentcore-agent/actions/workflows/codeql.yml)
+
+Production-ready Python agent using Amazon Bedrock Agentcore Runtime with Strands SDK. Secure, OAuth-authenticated bridge between Bedrock AI agents and custom tools.
+
 This project demonstrates how to deploy a Python-based agent using the `strands` SDK to Amazon Bedrock Agentcore Runtime. The agent is exposed as a FastAPI application within a Docker container, allowing it to be hosted on the Agentcore Runtime for scalable and efficient execution.
 
 ## Architecture
@@ -60,26 +66,43 @@ Before you begin, ensure you have the following installed and configured:
     └── variables.tf      # Terraform input variables
 ```
 
+## One-Time Backend Setup
+
+Before you can deploy, you need to run a one-time setup command to create the Terraform backend infrastructure:
+
+```bash
+make setup-backend
+```
+
+This command will:
+1. Prompt you for a unique S3 bucket name
+2. Create the S3 bucket for Terraform state storage
+3. Enable versioning and encryption on the bucket
+4. Configure native S3 state locking (Terraform 1.10+)
+5. Generate the `iac/backend.config` file
+
+After setup, you can deploy your infrastructure with:
+```bash
+make deploy
+```
+
+**Important**: The `backend.config` file is essential for all Terraform operations. The Makefiles now include smart backend checking that will guide you if this file is missing.
+
 ## Quick Start
 
 Follow these steps to get your agent deployed and running:
 
-1.  **Configure AWS CLI**: Ensure your AWS CLI is configured with appropriate permissions.
-2.  **Setup Terraform Backend**:
-    ```bash
-    make setup-backend
-    ```
-    This command will prompt you for a globally unique S3 bucket name and set up an S3 bucket for Terraform state and a DynamoDB table for state locking.
-3.  **Deploy**:
-    ```bash
-    make deploy
-    ```
-    This command will:
-    *   Build the Docker image for `linux/arm64`.
-    *   Authenticate Docker to ECR.
-    *   Create the ECR repository and its policy if they don't exist.
-    *   Tag and push the Docker image to your ECR repository.
-    *   Initialize and apply the Terraform configuration to deploy the Agentcore Runtime.
+```bash
+make setup-backend # One-time backend setup (S3 with native locking)
+make deploy        # Build and deploy to AWS
+```
+
+This will:
+*   Build the Docker image for `linux/arm64`.
+*   Authenticate Docker to ECR.
+*   Create the ECR repository and its policy if they don't exist.
+*   Tag and push the Docker image to your ECR repository.
+*   Initialize and apply the Terraform configuration to deploy the Agentcore Runtime.
 
 ## Deployment Steps (Detailed)
 
@@ -108,9 +131,42 @@ make tf-init
 make tf-apply
 ```
 
+## Initial Setup for GitHub Actions
+
+When using this repository, you'll need to set up several secrets in your repository settings for the GitHub Actions workflows to function properly.
+
+### Required GitHub Secrets
+
+| Secret Name | Description | Setup Instructions |
+|-------------|-------------|--------------------|
+| `AWS_IAM_ROLE_ARN` | AWS IAM Role ARN for GitHub Actions OIDC authentication | [AWS GitHub Actions Setup](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services) |
+| `AZURE_CLIENT_ID` | Entra ID App Registration Client ID | [Azure GitHub Actions Setup](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure) |
+| `AZURE_TENANT_ID` | Entra ID Tenant ID | [Azure GitHub Actions Setup](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure) |
+| `TF_BACKEND_BUCKET` | S3 Bucket name for Terraform state storage | Run `make setup-backend` after setting AWS credentials |
+
+### Optional GitHub Secrets
+
+| Secret Name | Description |
+|-------------|-------------|
+| `OPENCODE_API_KEY` | For opencode.ai integration |
+
+### Updating GitHub Secrets
+
+To update your GitHub repository secrets for **both GitHub Actions and Dependabot**, create a `.env` file in the root of the project with the secrets you wish to update (e.g., `MY_SECRET="myvalue"`). You can use the provided `.env.example` file as a template for the required and optional secrets.
+
+Then, run the following command:
+
+```bash
+make update-secrets
+```
+
+This command will read the `.env` file and use the `gh CLI` to set or update the corresponding repository secrets for both GitHub Actions and Dependabot.
+
+**Important**: Ensure your `.env` file is in your `.gitignore` to prevent accidentally committing sensitive information.
+
 ## Configuration
 
-You can customize the deployment by modifying the variables in `iac/variables.tf` or by creating a `iac/terraform.tfvars` file.
+You can customize the deployment by modifying the variables in `iac/variables.tf` or by creating a `iac/terraform.tfvars` file based on `iac/terraform.tfvars.example`.
 
 *   **`ecr_repo_name`**: The name of the ECR repository. Defaults to `aws-agentcore-agent-repo`.
 *   **`bedrock_agent_permissions_resources`**: By default, the agent's IAM role has `*` permissions for Bedrock actions. In a production environment, you should restrict this to specific model ARNs. You can set this variable in `iac/terraform.tfvars` to a list of specific ARNs.
@@ -156,18 +212,27 @@ bedrock_agent_permissions_resources = [
 ]
 ```
 
+## Automated Dependency Updates
+
+Dependabot automatically creates PRs for:
+- 🐍 **Python dependencies** - pyproject.toml updates
+- 🏗️ **Terraform providers** - AWS, Entra ID, and other providers
+- ⚙️ **GitHub Actions** - Workflow action updates
+
+Updates are automatically tested and merged when all checks pass.
+
 ## Testing
 
-This project includes basic testing for the Terraform configuration:
+This project includes testing for both Python and Terraform:
 
-*   **Terraform Validation**: The `make test` command (or `cd iac && make test`) runs `terraform validate` and `terraform plan` to ensure the infrastructure code is syntactically correct and can generate an execution plan without errors.
+*   **Python Tests**: The `make test` command runs `pytest` on your Python code
+*   **Terraform Validation**: Runs `terraform validate` and `terraform plan` to ensure infrastructure code is correct
 
-To run the Terraform tests:
+To run tests:
 ```bash
-make test
+make test           # Run Python tests
+cd iac && make test # Validate Terraform configuration
 ```
-
-For agent-specific unit and integration tests, you would add them to your Python project and integrate them into the `make test` command in the root `Makefile` (currently a placeholder).
 
 ## Troubleshooting
 
@@ -187,27 +252,29 @@ make tf-destroy
 
 ## Commands
 
+### Main Commands
 | Command | Description |
-|---|---|
-| **Development Commands** | |
-| `make build` | Builds the Docker image locally (single platform, for quick local testing) |
-| `make python-test` | Runs Python tests (placeholder) |
-| | |
-| **Deployment Commands** | |
-| `make login` | Authenticates Docker to ECR |
-| `make release` | Builds the Docker image for the specified `DOCKER_PLATFORM` (default: `linux/arm64`) |
-| `make push` | Builds (release), logs in, tags, and pushes the Docker image to ECR |
-| `make setup-backend` | Creates S3/DynamoDB backend for Terraform state |
-| `make create-ecr` | Creates ECR repository and its policy if they don't exist (calls `iac/Makefile` and performs a full `terraform apply`) |
-| `make deploy` | Pushes Docker image and deploys Terraform (calls `iac/Makefile` for `tf-apply`) |
-| `make oauth-config` | Displays JWT configuration for A2A authentication (calls `iac/Makefile`) |
-| `make launch-a2a-inspector` | Launches the A2A Inspector Docker container |
-| `make kill-a2a-inspector` | Stops and removes the A2A Inspector Docker container |
-| | |
-| **Maintenance Commands** | |
-| `make clean` | Cleans up local build artifacts and Terraform backend config |
-| `make logs` | Tails CloudWatch logs (placeholder) |
-| `make test` | Validates and plans Terraform configuration (calls `iac/Makefile`) |
-| `make tf-destroy` | Destroys Terraform infrastructure (calls `iac/Makefile`) |
-| | |
-| `make help` | Show this help message (and `cd iac && make help` for iac commands) |
+|---------|-------------|
+| `make help` | Show all commands with colored output |
+| `make check-tools` | Check for required tools (uv, docker, aws-cli) |
+| `make build` | Debug build |
+| `make release` | ARM64 production build |
+| `make test` | Run tests |
+| `make all` | Test + build |
+| `make deploy` | Build and deploy to AWS (smart backend checking) |
+| `make setup-backend` | One-time backend setup (S3 with native locking) |
+| `make update-deps` | Update all dependencies |
+
+### Infrastructure Commands
+| Command | Description |
+|---------|-------------|
+| `make login` | Authenticate Docker to ECR |
+| `make tf-init` | Initialize Terraform (smart backend checking) |
+| `make tf-plan` | Plan Terraform changes |
+| `make tf-apply` | Apply Terraform changes |
+| `make tf-destroy` | Destroy infrastructure |
+| `make clean` | Remove build artifacts |
+| `make oauth-config` | Display OAuth configuration details |
+| `make update-secrets` | Update GitHub secrets from .env file |
+
+For advanced infrastructure commands: `cd iac && make help`

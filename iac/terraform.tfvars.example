@@ -1,0 +1,26 @@
+# Example Terraform Variables Configuration
+# Copy this file to terraform.tfvars and customize for your environment
+
+# Project Configuration
+# project_name = "my-agentcore-project"
+
+# AWS Region
+# aws_region = "ap-southeast-2"
+
+# Common Tags
+# common_tags = {
+#   Environment = "Production"
+#   Owner       = "MyTeam"
+#   Project     = "AgentcoreProject"
+# }
+
+# ECR Configuration
+# ecr_force_delete = false # Set to true only for non-production environments
+
+# Bedrock Agent Permissions
+# By default, the agent's IAM role has "*" permissions for Bedrock actions.
+# In production, you should restrict this to specific model ARNs:
+# bedrock_agent_permissions_resources = [
+#   "arn:aws:bedrock:ap-southeast-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0",
+#   "arn:aws:bedrock:ap-southeast-2::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+# ]

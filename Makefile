@@ -45,7 +45,7 @@ help: ## ✨ Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '^(login|push|setup-backend|create-ecr|deploy|tf-destroy):' | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(GREEN)Development Tools:$(RESET)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '^(oauth-config|launch-a2a-inspector|kill-a2a-inspector|clean|logs):' | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '^(oauth-config|launch-a2a-inspector|kill-a2a-inspector|clean|logs|update-secrets):' | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(GREEN)Terraform Commands:$(RESET)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '^(tf-init|tf-plan|tf-apply):' | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
@@ -134,7 +134,7 @@ check-backend-config:
 		echo ""; \
 		echo "This will:"; \
 		echo "  1. Create an S3 bucket for Terraform state"; \
-		echo "  2. Create a DynamoDB table for state locking"; \
+		echo "  2. Enable native S3 state locking (Terraform 1.10+)"; \
 		echo "  3. Generate the iac/backend.config file"; \
 		echo ""; \
 		echo "After setup, run '$(CYAN)make tf-init$(RESET)' to initialize Terraform."; \
@@ -143,9 +143,47 @@ check-backend-config:
 		echo "$(GREEN)✅ backend.config file exists$(RESET)"; \
 	fi
 
-setup-backend: ## ⚙️ Create S3/DynamoDB backend for Terraform state
-	@echo "$(BLUE)⚙️  Setting up Terraform backend...$(RESET)"
-	@cd iac && $(MAKE) setup-backend
+setup-backend: ## ⚙️ Create S3 backend for Terraform state (native locking)
+	@bash -c ' \
+	set -e; \
+	echo -e "$(BLUE)⚙️  Setting up Terraform backend...$(RESET)"; \
+	if [ -f iac/backend.config ]; then \
+		echo -e "$(YELLOW)⚠️  A backend configuration already exists:$(RESET)"; \
+		echo ""; \
+		cat iac/backend.config | sed "s/^/  /"; \
+		echo ""; \
+		read -p "Do you want to proceed and create a new backend? (y/N): " CONFIRM; \
+		if [ "$$CONFIRM" != "y" ] && [ "$$CONFIRM" != "Y" ]; then \
+			echo -e "$(GREEN)✅ Aborted. Existing backend preserved.$(RESET)"; \
+			exit 0; \
+		fi; \
+	fi; \
+	command -v aws >/dev/null 2>&1 || (echo -e "$(RED)❌ AWS CLI not found. Install: https://aws.amazon.com/cli/$(RESET)" && exit 1); \
+	aws sts get-caller-identity >/dev/null 2>&1 || (echo -e "$(RED)❌ AWS CLI not configured. Run: aws configure$(RESET)" && exit 1); \
+	read -p "Enter a globally unique S3 bucket name for Terraform state: " BUCKET_NAME; \
+	if [ -z "$$BUCKET_NAME" ]; then \
+		echo -e "$(RED)❌ Bucket name cannot be empty.$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo -e "$(BLUE)▶️ Creating S3 bucket '\''$$BUCKET_NAME'\'' in region $(AWS_REGION)...$(RESET)"; \
+	if aws s3api head-bucket --bucket $$BUCKET_NAME --no-cli-pager 2>/dev/null; then \
+		echo -e "$(YELLOW)⚠️  Bucket '\''$$BUCKET_NAME'\'' already exists. Using existing bucket.$(RESET)"; \
+	else \
+		aws s3api create-bucket --bucket $$BUCKET_NAME --region $(AWS_REGION) --create-bucket-configuration LocationConstraint=$(AWS_REGION) --no-cli-pager > /dev/null; \
+	fi; \
+	echo -e "$(BLUE)▶️ Enabling versioning and encryption for '\''$$BUCKET_NAME'\''...$(RESET)"; \
+	aws s3api put-bucket-versioning --bucket $$BUCKET_NAME --versioning-configuration Status=Enabled > /dev/null; \
+	aws s3api put-bucket-encryption --bucket $$BUCKET_NAME --server-side-encryption-configuration '\''{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'\'' > /dev/null; \
+	echo -e "$(BLUE)▶️ Creating '\''iac/backend.config'\'' for local use...$(RESET)"; \
+	echo "bucket         = \"$$BUCKET_NAME\"" > iac/backend.config; \
+	echo "key            = \"aws-agentcore-agent/terraform.tfstate\"" >> iac/backend.config; \
+	echo "region         = \"$(AWS_REGION)\"" >> iac/backend.config; \
+	echo "use_lockfile   = true" >> iac/backend.config; \
+	echo -e "$(GREEN)✅ Backend setup complete!$(RESET)"; \
+	echo -e "$(CYAN)ℹ️  Using native S3 state locking (Terraform 1.10+)$(RESET)"; \
+	echo -e "Run '\''$(CYAN)make tf-init$(RESET)'\'' to initialize Terraform with the new backend."; \
+	echo "TF_BACKEND_BUCKET=\"$$BUCKET_NAME\"" >> .env \
+	'
 
 tf-init: check-backend-config ## ⚙️ Initialize Terraform
 	@echo "$(BLUE)⚙️  Initializing Terraform...$(RESET)"
@@ -199,6 +237,18 @@ kill-a2a-inspector: ## 🛑 Stop the A2A Inspector Docker container
 logs: ## 📜 Tail CloudWatch logs
 	@echo "$(BLUE)📜 Tailing CloudWatch logs...$(RESET)"
 	@cd iac && $(MAKE) logs
+
+update-secrets: ## 🔐 Update GitHub repository secrets from .env file
+	@echo "$(BLUE)🔐 Updating GitHub repository secrets from .env file...$(RESET)"
+	@if [ ! -f .env ]; then \
+		echo "$(RED)❌ .env file not found! Create a .env file with your secrets (e.g., MY_SECRET=value).$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Setting secrets for GitHub Actions...$(RESET)"
+	@gh secret set -f .env --app actions
+	@echo "$(BLUE)Setting secrets for Dependabot...$(RESET)"
+	@gh secret set -f .env --app dependabot
+	@echo "$(GREEN)✅ GitHub secrets updated for both GitHub Actions and Dependabot!$(RESET)"
 
 # ====================================================================================
 # CLEANUP
