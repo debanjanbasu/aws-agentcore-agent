@@ -14,7 +14,7 @@ terraform {
     }
     awscc = {
       source  = "hashicorp/awscc"
-      version = "~> 1.63.0"
+      version = "~> 1.64.0"
     }
     azuread = {
       source  = "hashicorp/azuread"
